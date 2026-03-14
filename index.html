@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Scout Hub</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { background:#0b1120; color:#e2e8f0; font-family:'DM Sans',system-ui,sans-serif; max-width:480px; margin:0 auto; min-height:100vh; }
+  input, textarea { font-family:'DM Sans',system-ui,sans-serif; }
+  input::placeholder, textarea::placeholder { color:#475569; }
+  .mono { font-family:'JetBrains Mono',monospace; }
+  .label { display:block; font-size:10px; font-family:'JetBrains Mono',monospace; color:#64748b; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:6px; }
+  .input { width:100%; padding:12px 14px; background:#1e293b; border:1.5px solid #334155; border-radius:10px; color:#e2e8f0; font-size:15px; outline:none; margin-bottom:18px; }
+  .input:focus { border-color:var(--ac); }
+  .textarea { width:100%; padding:12px 14px; background:#1e293b; border:1.5px solid #334155; border-radius:10px; color:#e2e8f0; font-size:13px; outline:none; resize:vertical; margin-bottom:18px; }
+  .textarea:focus { border-color:var(--ac); }
+  .chip { display:inline-flex; align-items:center; gap:4px; padding:6px 12px; border-radius:18px; font-size:12px; font-family:'JetBrains Mono',monospace; cursor:pointer; transition:all 0.15s; user-select:none; border:1.5px solid #334155; background:transparent; color:#94a3b8; }
+  .chip.on { border-color:var(--ac); background:color-mix(in srgb, var(--ac) 10%, transparent); color:var(--ac); }
+  .chip-wrap { display:flex; flex-wrap:wrap; gap:7px; margin-bottom:18px; }
+  .card { background:#111827; border:1px solid #1e293b; border-radius:12px; padding:14px; margin-bottom:8px; cursor:pointer; }
+  .tag { font-size:10px; padding:3px 9px; border-radius:12px; font-family:'JetBrains Mono',monospace; display:inline-block; }
+  .tag-wrap { display:flex; flex-wrap:wrap; gap:4px; margin-top:8px; }
+  .expanded { margin-top:12px; padding-top:12px; border-top:1px solid #1e293b; }
+  .del-btn { padding:6px 14px; background:rgba(239,68,68,0.1); color:#ef4444; border:1px solid rgba(239,68,68,0.2); border-radius:8px; font-size:11px; font-weight:600; cursor:pointer; }
+  .submit { width:100%; padding:14px; border:none; border-radius:12px; font-size:15px; font-weight:700; cursor:pointer; font-family:'DM Sans',system-ui; transition:all 0.2s; }
+  .submit.active { background:var(--ac); color:#0b0f1a; }
+  .submit.inactive { background:#1e293b; color:#475569; }
+  .stat-card { background:#111827; border:1px solid #1e293b; border-radius:12px; padding:14px; margin-bottom:12px; }
+  .stat-title { font-size:10px; font-family:'JetBrains Mono',monospace; color:#64748b; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:12px; }
+  .stat-bar-wrap { margin-bottom:8px; }
+  .stat-bar-label { display:flex; justify-content:space-between; font-size:11px; font-family:'JetBrains Mono',monospace; margin-bottom:3px; color:#94a3b8; }
+  .stat-bar-bg { height:6px; background:#1e293b; border-radius:3px; overflow:hidden; }
+  .stat-bar-fill { height:100%; border-radius:3px; transition:width 0.4s ease; }
+  .insight { border:1px solid #1e293b; border-radius:12px; padding:14px; }
+  .tab-btn { flex:1; padding:10px 0; background:none; border:none; cursor:pointer; font-family:'DM Sans',system-ui; font-size:13px; font-weight:600; transition:all 0.15s; border-bottom:2px solid transparent; color:#64748b; }
+  .tab-btn.on { border-bottom-color:var(--ac); color:var(--ac); }
+  .scout-btn { flex:1; padding:10px 0; border-radius:10px; border:none; cursor:pointer; font-family:'DM Sans',system-ui; font-size:14px; font-weight:600; transition:all 0.2s; }
+  .toast { position:fixed; top:80px; left:50%; transform:translateX(-50%); padding:10px 20px; border-radius:10px; font-weight:600; font-size:13px; z-index:200; box-shadow:0 8px 32px rgba(0,0,0,0.4); animation:fadeIn 0.2s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:translateX(-50%) translateY(-10px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
+  .empty { text-align:center; padding:50px 20px; color:#475569; }
+  .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:20px; }
+  .grid-item { background:#111827; border:1px solid #1e293b; border-radius:10px; padding:14px 10px; text-align:center; }
+  .grid-val { font-size:24px; font-weight:700; font-family:'JetBrains Mono',monospace; }
+  .grid-label { font-size:9px; color:#64748b; font-family:'JetBrains Mono',monospace; letter-spacing:1px; text-transform:uppercase; margin-top:3px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// ============ DATA ============
+const STORAGE_PREFIX = "scout-hub-";
+
+// Business (formerly Signs)
+const BUSINESS_TYPES = ["Office Building", "Retail", "Apts (general)", "Other"];
+const SIGN_TYPES = ["Restroom","Employees Only","Push/Pull","Hours","Directional/Arrow","Room Label","No Smoking","Open/Closed","Parking","Custom/Other"];
+const CONDITIONS = [
+  {label:"Paper/taped up",emoji:"📄",color:"#ef4444"},
+  {label:"Faded/worn",emoji:"☀️",color:"#f97316"},
+  {label:"Cracked/broken",emoji:"💔",color:"#dc2626"},
+  {label:"Handwritten",emoji:"✏️",color:"#eab308"},
+  {label:"Missing entirely",emoji:"🚫",color:"#7c3aed"},
+  {label:"Ugly but functional",emoji:"😬",color:"#6b7280"},
+];
+
+// Apts
+const PROBLEM_AREAS = [
+  {label:"Building numbers missing/faded",emoji:"🏢"},
+  {label:"No package room signage",emoji:"📦"},
+  {label:"No directional signs at entrance",emoji:"➡️"},
+  {label:"Leasing office hard to find",emoji:"🔑"},
+  {label:"Unit numbering confusing",emoji:"🔢"},
+  {label:"Multiple entrances, no guidance",emoji:"🚪"},
+  {label:"Mailbox area poorly marked",emoji:"📬"},
+];
+const DIFFICULTY_LEVELS = [
+  {label:"Easy to navigate",color:"#22c55e"},
+  {label:"Confusing",color:"#eab308"},
+  {label:"Got lost",color:"#f97316"},
+  {label:"Nightmare",color:"#ef4444"},
+];
+
+// Houses
+const ADDRESS_ISSUES = [
+  {label:"Numbers missing entirely",emoji:"❌"},
+  {label:"Numbers faded/unreadable",emoji:"☀️"},
+  {label:"Too small to see from street",emoji:"🔍"},
+  {label:"Blocked by bushes/tree",emoji:"🌳"},
+  {label:"Wrong color (blends in)",emoji:"🎨"},
+  {label:"Mailbox leaning/damaged",emoji:"📪"},
+  {label:"Mailbox numbers peeling",emoji:"📬"},
+  {label:"House number not lit at night",emoji:"🌙"},
+  {label:"Multiple units, unclear labeling",emoji:"🏘️"},
+];
+const HOUSE_TYPES = ["Single family","Duplex","Townhouse","Other"];
+const VISIBILITY = [
+  {label:"Visible from street",color:"#22c55e"},
+  {label:"Hard to spot",color:"#eab308"},
+  {label:"Had to get out and look",color:"#f97316"},
+  {label:"Couldn't find it",color:"#ef4444"},
+];
+
+// ============ STORAGE ============
+function load(key) {
+  try { const d = localStorage.getItem(STORAGE_PREFIX + key); return d ? JSON.parse(d) : []; } catch(e) { return []; }
+}
+function save(key, data) {
+  try { localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(data)); } catch(e) {}
+}
+function getTimestamp() {
+  return new Date().toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit",hour12:true});
+}
+
+// ============ STATE ============
+let state = {
+  activeScout: "apts",
+  tabs: { apts:"list", business:"list", houses:"list" },
+  entries: { apts:load("apts"), business:load("business"), houses:load("houses") },
+  forms: {
+    apts: { complexName:"",address:"",mainProblem:"",difficulty:"",problems:[],hasPackageRoom:"",notes:"" },
+    business: { businessName:"",businessType:"",signType:[],condition:[],notes:"",address:"" },
+    houses: { address:"",neighborhood:"",houseType:"",visibility:"",issues:[],wouldBuy:"",notes:"" },
+  },
+  expanded: { apts:null, business:null, houses:null },
+  toast: null,
+};
+
+function setState(fn) { fn(state); render(); }
+function setForm(scout, key, val) { setState(s => { s.forms[scout][key] = val; }); }
+function toggleArr(scout, key, val) {
+  setState(s => {
+    const arr = s.forms[scout][key];
+    s.forms[scout][key] = arr.includes(val) ? arr.filter(i=>i!==val) : [...arr, val];
+  });
+}
+
+// ============ RENDER ============
+function h(tag, props, ...children) {
+  const el = document.createElement(tag);
+  if (props) Object.entries(props).forEach(([k,v]) => {
+    if (k === "style" && typeof v === "object") Object.assign(el.style, v);
+    else if (k === "className") el.className = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2).toLowerCase(), v);
+    else el.setAttribute(k, v);
+  });
+  children.flat(9).forEach(c => { if (c != null) el.append(typeof c === "string" ? document.createTextNode(c) : c); });
+  return el;
+}
+
+function render() {
+  const app = document.getElementById("app");
+  app.innerHTML = "";
+  document.documentElement.style.setProperty("--ac", {apts:"#f59e0b",business:"#22d3ee",houses:"#10b981"}[state.activeScout]);
+  app.append(renderHub());
+}
+
+function renderHub() {
+  const scouts = [
+    {key:"apts",label:"Apts",emoji:"🏢",color:"#f59e0b"},
+    {key:"business",label:"Business",emoji:"🪧",color:"#22d3ee"},
+    {key:"houses",label:"Houses",emoji:"🏠",color:"#10b981"},
+  ];
+  const sc = scouts.find(s=>s.key===state.activeScout);
+
+  return h("div",{},
+    // Header
+    h("div",{style:{padding:"20px 20px 14px",background:"linear-gradient(180deg,#0f172a 0%,#0b1120 100%)",borderBottom:"1px solid #1e293b"}},
+      h("div",{className:"mono",style:{fontSize:"10px",color:"#475569",letterSpacing:"2px",textTransform:"uppercase",marginBottom:"6px"}},"Scout Hub"),
+      h("div",{style:{display:"flex",gap:"6px"}},
+        ...scouts.map(s => h("button",{
+          className:"scout-btn",
+          style:{
+            background:state.activeScout===s.key?s.color+"20":"#111827",
+            color:state.activeScout===s.key?s.color:"#475569",
+            boxShadow:state.activeScout===s.key?`inset 0 0 0 1.5px ${s.color}40`:"inset 0 0 0 1px #1e293b",
+          },
+          onClick:() => setState(st => { st.activeScout = s.key; }),
+        }, s.emoji+" "+s.label))
+      )
+    ),
+    // Toast
+    state.toast ? h("div",{className:"toast",style:{background:state.toast.bg,color:state.toast.fg}},state.toast.msg) : null,
+    // Content
+    h("div",{style:{padding:"12px 16px 100px"}},
+      state.activeScout==="apts" ? renderApts() :
+      state.activeScout==="business" ? renderBusiness() :
+      renderHouses()
+    )
+  );
+}
+
+// ============ TABS ============
+function renderTabs(scout, labels) {
+  const active = state.tabs[scout];
+  return h("div",{style:{display:"flex",borderBottom:"1px solid #1e293b",marginBottom:"12px"}},
+    ...labels.map(([key,label]) => h("button",{
+      className:"tab-btn"+(active===key?" on":""),
+      onClick:() => setState(s => { s.tabs[scout] = key; }),
+    }, label))
+  );
+}
+
+// ============ APTS ============
+function renderApts() {
+  const f = state.forms.apts;
+  const entries = state.entries.apts;
+  const tab = state.tabs.apts;
+  const ac = "#f59e0b";
+
+  const el = h("div",{},
+    renderTabs("apts",[["list","Complexes"],["add","+ Scout"],["stats","Patterns"]])
+  );
+
+  if (tab === "list") {
+    if (!entries.length) { el.append(renderEmpty("🏢","No complexes logged","Use + Scout when you deliver to apartments")); return el; }
+    entries.forEach(e => {
+      const diff = DIFFICULTY_LEVELS.find(d=>d.label===e.difficulty);
+      const card = h("div",{className:"card",onClick:() => setState(s => { s.expanded.apts = s.expanded.apts===e.id?null:e.id; })},
+        h("div",{style:{display:"flex",justifyContent:"space-between"}},
+          h("div",{},
+            h("div",{style:{fontSize:"15px",fontWeight:"600",marginBottom:"2px"}},e.complexName),
+            h("div",{className:"mono",style:{fontSize:"11px",color:"#64748b"}},e.address||"No address")
+          ),
+          h("span",{className:"tag",style:{background:(diff?.color||"#6b7280")+"18",color:diff?.color||"#6b7280"}},e.difficulty)
+        ),
+        h("div",{className:"tag-wrap"},
+          ...e.problems.slice(0,3).map(p => { const pr=PROBLEM_AREAS.find(x=>x.label===p); return h("span",{className:"tag",style:{background:ac+"18",color:ac}},(pr?.emoji||"")+" "+(p.length>25?p.slice(0,25)+"…":p)); }),
+          e.problems.length>3 ? h("span",{className:"tag",style:{background:"#92710a18",color:"#92710a"}},"+"+( e.problems.length-3)+" more") : null
+        )
+      );
+      if (state.expanded.apts === e.id) {
+        const exp = h("div",{className:"expanded"});
+        if (e.mainProblem) exp.append(h("div",{style:{fontSize:"13px",color:ac,marginBottom:"6px",fontWeight:"600"}},"⚡ "+e.mainProblem));
+        exp.append(h("div",{style:{fontSize:"12px",color:"#94a3b8",marginBottom:"6px"}},"📦 Package room: "+(e.hasPackageRoom||"Not noted")));
+        exp.append(h("div",{className:"mono",style:{fontSize:"11px",color:"#64748b",marginBottom:"4px"}},"All problems:"));
+        exp.append(h("div",{className:"tag-wrap",style:{marginBottom:"8px"}},...e.problems.map(p => { const pr=PROBLEM_AREAS.find(x=>x.label===p); return h("span",{className:"tag",style:{background:ac+"18",color:ac}},(pr?.emoji||"")+" "+p); })));
+        if (e.notes) exp.append(h("div",{style:{fontSize:"12px",color:"#94a3b8",fontStyle:"italic",marginBottom:"8px"}},'"'+e.notes+'"'));
+        exp.append(h("div",{className:"mono",style:{fontSize:"10px",color:"#475569",marginBottom:"8px"}},e.timestamp));
+        exp.append(h("button",{className:"del-btn",onClick:(ev) => { ev.stopPropagation(); setState(s => { s.entries.apts=s.entries.apts.filter(x=>x.id!==e.id); save("apts",s.entries.apts); s.expanded.apts=null; }); }},"Delete"));
+        card.append(exp);
+      }
+      el.append(card);
+    });
+  } else if (tab === "add") {
+    const form = h("div",{});
+    form.append(h("label",{className:"label"},"Complex Name"));
+    form.append(renderInput("apts","complexName","e.g. Maple Ridge Apartments"));
+    form.append(h("label",{className:"label"},"Address / Location"));
+    form.append(renderInput("apts","address","e.g. 1200 University Ave, St. Paul"));
+    form.append(h("label",{className:"label"},"Main Problem (quick summary)"));
+    form.append(renderInput("apts","mainProblem","e.g. No building numbers anywhere"));
+    form.append(h("label",{className:"label"},"How hard was it to deliver here?"));
+    form.append(renderChipGroup(DIFFICULTY_LEVELS.map(d=>({label:d.label,color:d.color})), f.difficulty, v => setForm("apts","difficulty",v), true));
+    form.append(h("label",{className:"label"},"Has a package room?"));
+    form.append(renderChipGroup(["Yes","No","Package Area","Not sure"].map(o=>({label:o})), f.hasPackageRoom, v => setForm("apts","hasPackageRoom",v), false));
+    form.append(h("label",{className:"label"},"Problem Areas (pick all)"));
+    form.append(renderChipGroup(PROBLEM_AREAS.map(p=>({label:p.label,prefix:p.emoji})), f.problems, v => toggleArr("apts","problems",v), false, true));
+    form.append(h("label",{className:"label"},"Notes"));
+    form.append(renderTextarea("apts","notes","Manager name, maintenance guy, etc."));
+    const valid = f.complexName && f.difficulty && f.problems.length;
+    form.append(h("button",{className:"submit "+(valid?"active":"inactive"),onClick:() => {
+      if (!valid) return;
+      setState(s => {
+        s.entries.apts = [{...s.forms.apts,id:Date.now(),timestamp:getTimestamp()}, ...s.entries.apts];
+        save("apts",s.entries.apts);
+        s.forms.apts = {complexName:"",address:"",mainProblem:"",difficulty:"",problems:[],hasPackageRoom:"",notes:""};
+        s.toast = {msg:"Complex logged.",bg:"#78350f",fg:"#fbbf24"};
+        s.tabs.apts = "list";
+      });
+      setTimeout(() => setState(s => { s.toast = null; }), 1200);
+    }},"Log Complex"));
+    el.append(form);
+  } else {
+    if (!entries.length) { el.append(renderEmpty("📊","No data yet","Log some complexes first")); return el; }
+    const probCounts={}, diffCounts={}; let pkgCount=0;
+    entries.forEach(e => { e.problems.forEach(p=>probCounts[p]=(probCounts[p]||0)+1); if(e.difficulty) diffCounts[e.difficulty]=(diffCounts[e.difficulty]||0)+1; if(e.hasPackageRoom==="Yes") pkgCount++; });
+    const sortedProb = Object.entries(probCounts).sort((a,b)=>b[1]-a[1]);
+    const nightmareCount = entries.filter(e=>e.difficulty==="Nightmare"||e.difficulty==="Got lost").length;
+    const clrs=["#f59e0b","#fb923c","#ef4444","#a78bfa","#22d3ee","#34d399","#f472b6"];
+    el.append(renderStatGrid([{label:"Complexes",value:entries.length,color:ac},{label:"Nightmare",value:nightmareCount,color:"#ef4444"},{label:"Has Pkg Rm",value:pkgCount,color:"#22c55e"}]));
+    el.append(renderStatCard("Top Problems", sortedProb.slice(0,7).map(([p,c],i) => { const pr=PROBLEM_AREAS.find(x=>x.label===p); return renderStatBar((pr?.emoji||"")+" "+p,c,entries.length,clrs[i%clrs.length]); })));
+    el.append(renderStatCard("Delivery Difficulty", DIFFICULTY_LEVELS.map(d => renderStatBar(d.label,diffCounts[d.label]||0,entries.length,d.color))));
+    if (nightmareCount>0&&sortedProb.length>0) el.append(renderInsight(ac, `<b style="color:#ef4444">${nightmareCount}</b> of ${entries.length} rated "Got lost" or "Nightmare." Top issue: <b style="color:${ac}">${sortedProb[0][0]}</b>.${nightmareCount>=3?" Strong pitch list for FOUNDit.":""}`));
+    el.append(renderExportBtn("apts", ac));
+  }
+  return el;
+}
+
+// ============ BUSINESS ============
+function renderBusiness() {
+  const f = state.forms.business;
+  const entries = state.entries.business;
+  const tab = state.tabs.business;
+  const ac = "#22d3ee";
+
+  const el = h("div",{},
+    renderTabs("business",[["list","Leads"],["add","+ Scout"],["stats","Patterns"]])
+  );
+
+  if (tab === "list") {
+    if (!entries.length) { el.append(renderEmpty("👀","No leads yet","Hit + Scout when you spot bad signage")); return el; }
+    entries.forEach(e => {
+      const card = h("div",{className:"card",onClick:() => setState(s => { s.expanded.business = s.expanded.business===e.id?null:e.id; })},
+        h("div",{style:{display:"flex",justifyContent:"space-between"}},
+          h("div",{},
+            h("div",{style:{fontSize:"15px",fontWeight:"600",marginBottom:"2px"}},e.businessName),
+            h("div",{className:"mono",style:{fontSize:"11px",color:"#64748b"}},e.businessType)
+          ),
+          h("div",{className:"mono",style:{fontSize:"10px",color:"#475569",whiteSpace:"nowrap"}},e.timestamp)
+        ),
+        h("div",{className:"tag-wrap"},
+          ...(e.condition||[]).map(c => { const cn=CONDITIONS.find(x=>x.label===c); return h("span",{className:"tag",style:{background:(cn?.color||"#6b7280")+"18",color:cn?.color||"#6b7280"}},(cn?.emoji||"")+" "+c); })
+        )
+      );
+      if (state.expanded.business === e.id) {
+        const exp = h("div",{className:"expanded"});
+        if (e.address) exp.append(h("div",{style:{fontSize:"12px",color:"#94a3b8",marginBottom:"6px"}},"📍 "+e.address));
+        exp.append(h("div",{className:"mono",style:{fontSize:"11px",color:"#64748b",marginBottom:"4px"}},"Signs needed:"));
+        exp.append(h("div",{className:"tag-wrap",style:{marginBottom:"8px"}},...(e.signType||[]).map(s => h("span",{className:"tag",style:{background:ac+"18",color:ac}},s))));
+        if (e.notes) exp.append(h("div",{style:{fontSize:"12px",color:"#94a3b8",fontStyle:"italic",marginBottom:"8px"}},'"'+e.notes+'"'));
+        exp.append(h("button",{className:"del-btn",onClick:(ev) => { ev.stopPropagation(); setState(s => { s.entries.business=s.entries.business.filter(x=>x.id!==e.id); save("business",s.entries.business); s.expanded.business=null; }); }},"Delete"));
+        card.append(exp);
+      }
+      el.append(card);
+    });
+  } else if (tab === "add") {
+    const form = h("div",{});
+    form.append(h("label",{className:"label"},"Business Name"));
+    form.append(renderInput("business","businessName","e.g. Tony's Barbershop"));
+    form.append(h("label",{className:"label"},"Address / Cross Streets"));
+    form.append(renderInput("business","address","e.g. University & Dale"));
+    form.append(h("label",{className:"label"},"Business Type"));
+    form.append(renderChipGroup(BUSINESS_TYPES.map(t=>({label:t})), f.businessType, v => setForm("business","businessType",v), false));
+    form.append(h("label",{className:"label"},"What signs are bad? (pick all)"));
+    form.append(renderChipGroup(SIGN_TYPES.map(t=>({label:t})), f.signType, v => toggleArr("business","signType",v), false, true));
+    form.append(h("label",{className:"label"},"Condition (pick all)"));
+    form.append(renderChipGroup(CONDITIONS.map(c=>({label:c.label,prefix:c.emoji,color:c.color})), f.condition, v => toggleArr("business","condition",v), true, true));
+    form.append(h("label",{className:"label"},"Notes"));
+    form.append(renderTextarea("business","notes","Owner seemed approachable, etc."));
+    const valid = f.businessName && f.businessType && f.signType.length && f.condition.length;
+    form.append(h("button",{className:"submit "+(valid?"active":"inactive"),onClick:() => {
+      if (!valid) return;
+      setState(s => {
+        s.entries.business = [{...s.forms.business,id:Date.now(),timestamp:getTimestamp()}, ...s.entries.business];
+        save("business",s.entries.business);
+        s.forms.business = {businessName:"",businessType:"",signType:[],condition:[],notes:"",address:""};
+        s.toast = {msg:"Logged it.",bg:"#065f46",fg:"#6ee7b7"};
+        s.tabs.business = "list";
+      });
+      setTimeout(() => setState(s => { s.toast = null; }), 1200);
+    }},"Log This Lead"));
+    el.append(form);
+  } else {
+    if (!entries.length) { el.append(renderEmpty("📊","No data yet","Log some leads first")); return el; }
+    const bizCounts={},signCounts={},condCounts={};
+    entries.forEach(e => { bizCounts[e.businessType]=(bizCounts[e.businessType]||0)+1; (e.signType||[]).forEach(s=>signCounts[s]=(signCounts[s]||0)+1); (e.condition||[]).forEach(c=>condCounts[c]=(condCounts[c]||0)+1); });
+    const sortedBiz=Object.entries(bizCounts).sort((a,b)=>b[1]-a[1]);
+    const sortedSign=Object.entries(signCounts).sort((a,b)=>b[1]-a[1]);
+    const sortedCond=Object.entries(condCounts).sort((a,b)=>b[1]-a[1]);
+    const clrs=["#22d3ee","#a78bfa","#fb923c","#34d399","#f87171","#facc15","#818cf8","#f472b6"];
+    el.append(renderStatGrid([{label:"Leads",value:entries.length,color:ac},{label:"Biz Types",value:Object.keys(bizCounts).length,color:"#a78bfa"},{label:"Signs",value:Object.values(signCounts).reduce((a,b)=>a+b,0),color:"#fb923c"}]));
+    el.append(renderStatCard("Top Business Types", sortedBiz.slice(0,5).map(([t,c],i) => renderStatBar(t,c,entries.length,clrs[i%clrs.length]))));
+    el.append(renderStatCard("Most Common Bad Signs", sortedSign.slice(0,5).map(([t,c],i) => renderStatBar(t,c,entries.length,clrs[(i+2)%clrs.length]))));
+    el.append(renderStatCard("Condition Breakdown", sortedCond.map(([c,n]) => { const cn=CONDITIONS.find(x=>x.label===c); return renderStatBar((cn?.emoji||"")+" "+c,n,entries.length,cn?.color||"#6b7280"); })));
+    if (sortedBiz.length>0&&sortedSign.length>0) el.append(renderInsight(ac, `Hottest target: <b style="color:${ac}">${sortedBiz[0][0]}</b>. Most common bad sign: <b style="color:#fb923c">${sortedSign[0][0]}</b>.${sortedBiz[0][1]>=3?" Clear pattern — pre-make a batch.":""}`));
+    el.append(renderExportBtn("business", ac));
+  }
+  return el;
+}
+
+// ============ HOUSES ============
+function renderHouses() {
+  const f = state.forms.houses;
+  const entries = state.entries.houses;
+  const tab = state.tabs.houses;
+  const ac = "#10b981";
+
+  const el = h("div",{},
+    renderTabs("houses",[["list","Houses"],["add","+ Scout"],["stats","Patterns"]])
+  );
+
+  if (tab === "list") {
+    if (!entries.length) { el.append(renderEmpty("🏠","No houses logged","Use + Scout when you see bad address numbers")); return el; }
+    entries.forEach(e => {
+      const vis = VISIBILITY.find(v=>v.label===e.visibility);
+      const card = h("div",{className:"card",onClick:() => setState(s => { s.expanded.houses = s.expanded.houses===e.id?null:e.id; })},
+        h("div",{style:{display:"flex",justifyContent:"space-between"}},
+          h("div",{},
+            h("div",{style:{fontSize:"15px",fontWeight:"600",marginBottom:"2px"}},e.address),
+            h("div",{className:"mono",style:{fontSize:"11px",color:"#64748b"}},e.neighborhood||e.houseType||"")
+          ),
+          h("span",{className:"tag",style:{background:(vis?.color||"#6b7280")+"18",color:vis?.color||"#6b7280"}},e.visibility)
+        ),
+        h("div",{className:"tag-wrap"},
+          ...(e.issues||[]).slice(0,3).map(i => { const is=ADDRESS_ISSUES.find(x=>x.label===i); return h("span",{className:"tag",style:{background:ac+"18",color:ac}},(is?.emoji||"")+" "+(i.length>25?i.slice(0,25)+"…":i)); }),
+          (e.issues||[]).length>3 ? h("span",{className:"tag",style:{background:"#065f4618",color:"#065f46"}},"+"+((e.issues||[]).length-3)+" more") : null
+        )
+      );
+      if (state.expanded.houses === e.id) {
+        const exp = h("div",{className:"expanded"});
+        if (e.houseType) exp.append(h("div",{style:{fontSize:"12px",color:"#94a3b8",marginBottom:"6px"}},"🏠 "+e.houseType));
+        if (e.wouldBuy) exp.append(h("div",{style:{fontSize:"12px",color:"#94a3b8",marginBottom:"6px"}},"💰 Would buy: "+e.wouldBuy));
+        exp.append(h("div",{className:"mono",style:{fontSize:"11px",color:"#64748b",marginBottom:"4px"}},"All issues:"));
+        exp.append(h("div",{className:"tag-wrap",style:{marginBottom:"8px"}},...(e.issues||[]).map(i => { const is=ADDRESS_ISSUES.find(x=>x.label===i); return h("span",{className:"tag",style:{background:ac+"18",color:ac}},(is?.emoji||"")+" "+i); })));
+        if (e.notes) exp.append(h("div",{style:{fontSize:"12px",color:"#94a3b8",fontStyle:"italic",marginBottom:"8px"}},'"'+e.notes+'"'));
+        exp.append(h("div",{className:"mono",style:{fontSize:"10px",color:"#475569",marginBottom:"8px"}},e.timestamp));
+        exp.append(h("button",{className:"del-btn",onClick:(ev) => { ev.stopPropagation(); setState(s => { s.entries.houses=s.entries.houses.filter(x=>x.id!==e.id); save("houses",s.entries.houses); s.expanded.houses=null; }); }},"Delete"));
+        card.append(exp);
+      }
+      el.append(card);
+    });
+  } else if (tab === "add") {
+    const form = h("div",{});
+    form.append(h("label",{className:"label"},"Address"));
+    form.append(renderInput("houses","address","e.g. 1847 Marshall Ave"));
+    form.append(h("label",{className:"label"},"Neighborhood / Area"));
+    form.append(renderInput("houses","neighborhood","e.g. Merriam Park, Frogtown"));
+    form.append(h("label",{className:"label"},"House Type"));
+    form.append(renderChipGroup(HOUSE_TYPES.map(t=>({label:t})), f.houseType, v => setForm("houses","houseType",v), false));
+    form.append(h("label",{className:"label"},"How visible was the address?"));
+    form.append(renderChipGroup(VISIBILITY.map(v=>({label:v.label,color:v.color})), f.visibility, v => setForm("houses","visibility",v), true));
+    form.append(h("label",{className:"label"},"What's wrong? (pick all)"));
+    form.append(renderChipGroup(ADDRESS_ISSUES.map(i=>({label:i.label,prefix:i.emoji})), f.issues, v => toggleArr("houses","issues",v), false, true));
+    form.append(h("label",{className:"label"},"Would homeowner likely buy?"));
+    form.append(renderChipGroup(["Likely yes","Maybe","Probably not"].map(o=>({label:o})), f.wouldBuy, v => setForm("houses","wouldBuy",v), false));
+    form.append(h("label",{className:"label"},"Notes"));
+    form.append(renderTextarea("houses","notes","Whole block has bad numbers, etc."));
+    const valid = f.address && f.visibility && f.issues.length;
+    form.append(h("button",{className:"submit "+(valid?"active":"inactive"),onClick:() => {
+      if (!valid) return;
+      setState(s => {
+        s.entries.houses = [{...s.forms.houses,id:Date.now(),timestamp:getTimestamp()}, ...s.entries.houses];
+        save("houses",s.entries.houses);
+        s.forms.houses = {address:"",neighborhood:"",houseType:"",visibility:"",issues:[],wouldBuy:"",notes:""};
+        s.toast = {msg:"House logged.",bg:"#064e3b",fg:"#6ee7b7"};
+        s.tabs.houses = "list";
+      });
+      setTimeout(() => setState(s => { s.toast = null; }), 1200);
+    }},"Log House"));
+    el.append(form);
+  } else {
+    if (!entries.length) { el.append(renderEmpty("📊","No data yet","Log some houses first")); return el; }
+    const issueCounts={},visCounts={},hoodCounts={}; let buyCount=0;
+    entries.forEach(e => { (e.issues||[]).forEach(i=>issueCounts[i]=(issueCounts[i]||0)+1); if(e.visibility) visCounts[e.visibility]=(visCounts[e.visibility]||0)+1; if(e.neighborhood) hoodCounts[e.neighborhood]=(hoodCounts[e.neighborhood]||0)+1; if(e.wouldBuy==="Likely yes") buyCount++; });
+    const sortedIssues=Object.entries(issueCounts).sort((a,b)=>b[1]-a[1]);
+    const sortedHoods=Object.entries(hoodCounts).sort((a,b)=>b[1]-a[1]);
+    const hardToFind=entries.filter(e=>e.visibility==="Had to get out and look"||e.visibility==="Couldn't find it").length;
+    const clrs=["#10b981","#22d3ee","#f59e0b","#a78bfa","#fb923c","#f472b6","#818cf8","#34d399"];
+    el.append(renderStatGrid([{label:"Houses",value:entries.length,color:ac},{label:"Hard to Find",value:hardToFind,color:"#ef4444"},{label:"Likely Buyers",value:buyCount,color:"#22d3ee"}]));
+    el.append(renderStatCard("Top Issues", sortedIssues.slice(0,8).map(([i,c],idx) => { const is=ADDRESS_ISSUES.find(x=>x.label===i); return renderStatBar((is?.emoji||"")+" "+i,c,entries.length,clrs[idx%clrs.length]); })));
+    el.append(renderStatCard("Visibility Breakdown", VISIBILITY.map(v => renderStatBar(v.label,visCounts[v.label]||0,entries.length,v.color))));
+    if (sortedHoods.length>1) el.append(renderStatCard("Neighborhoods", sortedHoods.slice(0,6).map(([hood,c],i) => renderStatBar(hood,c,entries.length,clrs[i%clrs.length]))));
+    if (sortedIssues.length>0) el.append(renderInsight(ac, `Most common: <b style="color:${ac}">${sortedIssues[0][0]}</b>.${buyCount>0?` <b style="color:#22d3ee">${buyCount}</b> likely buyers.`:""}${sortedHoods.length>0?` Worst area: <b style="color:#f59e0b">${sortedHoods[0][0]}</b>.`:""}${hardToFind>=5?" Enough data to start knocking.":""}`));
+    el.append(renderExportBtn("houses", ac));
+  }
+  return el;
+}
+
+// ============ HELPERS ============
+function renderInput(scout, key, placeholder) {
+  const inp = h("input",{className:"input",placeholder});
+  inp.value = state.forms[scout][key];
+  inp.addEventListener("input", e => setForm(scout, key, e.target.value));
+  return inp;
+}
+function renderTextarea(scout, key, placeholder) {
+  const ta = h("textarea",{className:"textarea",rows:"2",placeholder});
+  ta.value = state.forms[scout][key];
+  ta.addEventListener("input", e => setForm(scout, key, e.target.value));
+  return ta;
+}
+function renderChipGroup(items, selected, onSelect, useColor, isMulti) {
+  const wrap = h("div",{className:"chip-wrap"});
+  items.forEach(item => {
+    const isOn = isMulti ? (Array.isArray(selected) && selected.includes(item.label)) : selected === item.label;
+    const c = h("div",{className:"chip"+(isOn?" on":""),onClick:() => onSelect(item.label)});
+    if (useColor && item.color && isOn) {
+      c.style.borderColor = item.color;
+      c.style.color = item.color;
+      c.style.background = item.color + "15";
+    } else if (useColor && item.color && !isOn) {
+      c.style.borderColor = "#334155";
+      c.style.color = "#94a3b8";
+      c.style.background = "transparent";
+    }
+    if (item.prefix) c.textContent = item.prefix + " " + item.label;
+    else c.textContent = item.label;
+    wrap.append(c);
+  });
+  return wrap;
+}
+function renderEmpty(icon, label, sub) {
+  return h("div",{className:"empty"},
+    h("div",{style:{fontSize:"42px",marginBottom:"12px"}},icon),
+    h("div",{style:{fontSize:"15px",fontWeight:"600",color:"#94a3b8",marginBottom:"6px"}},label),
+    h("div",{style:{fontSize:"13px"}},sub)
+  );
+}
+function renderStatGrid(items) {
+  return h("div",{className:"grid3"}, ...items.map(s =>
+    h("div",{className:"grid-item"},
+      h("div",{className:"grid-val",style:{color:s.color}},String(s.value)),
+      h("div",{className:"grid-label"},s.label)
+    )
+  ));
+}
+function renderStatCard(title, bars) {
+  const card = h("div",{className:"stat-card"},h("div",{className:"stat-title"},title));
+  bars.forEach(b => card.append(b));
+  return card;
+}
+function renderStatBar(label, count, total, color) {
+  const pct = total > 0 ? (count/total)*100 : 0;
+  return h("div",{className:"stat-bar-wrap"},
+    h("div",{className:"stat-bar-label"},
+      h("span",{style:{fontSize:"11px"}},label),
+      h("span",{style:{color}},String(count))
+    ),
+    h("div",{className:"stat-bar-bg"},
+      h("div",{className:"stat-bar-fill",style:{width:pct+"%",background:color}})
+    )
+  );
+}
+function renderInsight(color, html) {
+  const d = h("div",{className:"insight",style:{background:color+"08"}},
+    h("div",{className:"mono",style:{fontSize:"10px",color,letterSpacing:"1.5px",textTransform:"uppercase",marginBottom:"6px"}},"Insight")
+  );
+  const p = h("div",{style:{fontSize:"13px",lineHeight:"1.6",color:"#cbd5e1"}});
+  p.innerHTML = html;
+  d.append(p);
+  return d;
+}
+
+// ============ EXPORT ============
+function exportCSV(scout) {
+  const entries = state.entries[scout];
+  if (!entries.length) return;
+  
+  let headers, rows;
+  if (scout === "apts") {
+    headers = ["Complex Name","Address","Main Problem","Difficulty","Package Room","Problems","Notes","Date"];
+    rows = entries.map(e => [
+      e.complexName, e.address, e.mainProblem||"", e.difficulty, e.hasPackageRoom||"",
+      (e.problems||[]).join("; "), e.notes||"", e.timestamp
+    ]);
+  } else if (scout === "business") {
+    headers = ["Business Name","Address","Business Type","Signs Needed","Condition","Notes","Date"];
+    rows = entries.map(e => [
+      e.businessName, e.address||"", e.businessType,
+      (e.signType||[]).join("; "), (e.condition||[]).join("; "), e.notes||"", e.timestamp
+    ]);
+  } else {
+    headers = ["Address","Neighborhood","House Type","Visibility","Would Buy","Issues","Notes","Date"];
+    rows = entries.map(e => [
+      e.address, e.neighborhood||"", e.houseType||"", e.visibility, e.wouldBuy||"",
+      (e.issues||[]).join("; "), e.notes||"", e.timestamp
+    ]);
+  }
+  
+  const esc = v => '"' + String(v).replace(/"/g,'""') + '"';
+  const csv = [headers.map(esc).join(","), ...rows.map(r => r.map(esc).join(","))].join("\n");
+  const blob = new Blob([csv], {type:"text/csv"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = scout + "-scout-export.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function renderExportBtn(scout, color) {
+  return h("button",{
+    style:{
+      width:"100%", padding:"12px", marginTop:"16px", border:"1px solid "+color+"40",
+      borderRadius:"10px", fontSize:"13px", fontWeight:"600", cursor:"pointer",
+      fontFamily:"'DM Sans',system-ui", background:color+"10", color:color,
+    },
+    onClick: () => exportCSV(scout),
+  }, "Export to CSV");
+}
+
+// ============ INIT ============
+render();
+</script>
+</body>
+</html>
