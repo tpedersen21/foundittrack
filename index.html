@@ -463,13 +463,15 @@ function renderHouses() {
 function renderInput(scout, key, placeholder) {
   const inp = h("input",{className:"input",placeholder});
   inp.value = state.forms[scout][key];
-  inp.addEventListener("input", e => setForm(scout, key, e.target.value));
+  inp.addEventListener("input", e => { state.forms[scout][key] = e.target.value; });
+  inp.addEventListener("blur", e => { state.forms[scout][key] = e.target.value; });
   return inp;
 }
 function renderTextarea(scout, key, placeholder) {
   const ta = h("textarea",{className:"textarea",rows:"2",placeholder});
   ta.value = state.forms[scout][key];
-  ta.addEventListener("input", e => setForm(scout, key, e.target.value));
+  ta.addEventListener("input", e => { state.forms[scout][key] = e.target.value; });
+  ta.addEventListener("blur", e => { state.forms[scout][key] = e.target.value; });
   return ta;
 }
 function renderChipGroup(items, selected, onSelect, useColor, isMulti) {
